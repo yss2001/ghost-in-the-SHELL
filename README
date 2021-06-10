@@ -1,0 +1,126 @@
+Welcome to gitsh (gHOST iN tHE shELL)!
+
+1) To compile the shell, simply type 'make' in the terminal.
+2) The shell executable is called gitsh. Therefore, execute ./gitsh to run it.
+3) To remove all object files and executable, enter 'make clean' in the terminal.
+
+****************************************************************************************************************************************************************
+
+Description:
+shell.c - 
+    This is the main landing area of the shell. An infinite loop prints the prompt for the user. Before tokenizing it, the command is stored in history unless it
+    is a duplicate of the previous immediate instruction. 
+    The command is tokenized by ';' and each part is sent to commandhandler for further flow of control.
+
+commandhandler.c -
+    Acts as a central control branching area. It first removes any leading or trailing whitespaces. Then it compares with known commands such as pwd, echo, cd,
+    ls, pinfo, history and nightswatch. If none of them are true, then it is sent to systemcommand for further processing.
+
+echo.c -
+    Handles the echo command. It removes qoutes as well as forward slashes (unless the slashes are inside a pair of qoutes). It also takes care of removing extra
+    whitespaces.
+
+pwd.c - 
+    Handles the straightforward pwd command.
+
+cd.c - 
+    Handles the cd command. If only cd is entered, then it imititates bash by changing directory to home. The same behaviour is programmed for cd ~. If another
+    directory is mentioned, then an error is thrown if it is not a valid one.
+
+ls.c - 
+    The control first reaches the function ls(). Inside, the flags are first established. Then, going through the command again, for each directory present, 
+    the function ls_print() is called. If no directories are specified, then ls_print() is called with "cur" to print contents of current directory.
+
+    Inside ls_print(), the directory specified is opened and then the shell changes to that directory (the user does not know this). If -l flag is not specified,
+    then the contents are printed using readdir. If -l is specified, then control is shifted to ls_print_utility().
+
+    Inside ls_print_utility(), an interation over all the contents of the directory is made to ascertain the maximum width of columns. In the second iteration,
+    the stat structure is used to determine the file type, file permissions, file size and the file owners.
+
+pinfo.c - 
+    The control first reaches the function pinfo(). The input process id is determined (if nothing was mentioned, then process id of shell is used) and sent to
+    pinfo_print(). The file /proc/[pid]/stat is opened to parse the contents and print the state and the size. Then the file /proc/[pid]/exe is opened to obtain
+    the absolute path of executable.
+
+    In /proc/[pid]/stat, the contents are space seperated (that is, space acts as a delimiter). The 3rd entry (that is, after two spaces) contains a single
+    character that denotes the status of the process. Moreover, the 23rd entry (that is, after twenty-two spaces) is a string containing the virtual
+    memory size used by the process.
+
+
+history.c - 
+    When the shell first runs, the get_history() command is used to determine how much history is stored. In general this function reads through the 'history.txt'
+    file and returns the total number of entries present.
+
+    Whenever user enters a command, the shell calls store_history(). Here, the command is inserted at the end. However, an additional check is present if the 
+    total number of records present exceeds 20 upon addition. If that is the case, then a temporary text file is created, into which the entire contents of 
+    'history.txt' are dumped except the first entry. Then this file is renamed as the new 'history.txt' file by deleting the previous file.
+
+    When the history command is issued, then the function print_history() is called. First, the input is checked to determine how many entries to be displayed.
+    In case of any error in the number of records to be displayed, it is always defaulted to 10. Once that is done, the shell reads through the 'history.txt'
+    file to print the last 'n' entries if 'n' is the input.
+    
+
+nightswatch.c - 
+    NOTE: NIGHTSWATCH ONLY HANDLES INTERRUPT, BUT NOT NEWBORN.
+
+    The control first reached watch_printer(). Over here, the command is parsed to determine the interval to be specified. Then, /proc/interrupts file is opened
+    and control is passed to interrupt_printer().
+
+    Inside interrupt_printer(), termios and fcntl are used. Using termios, the canonical mode of the terminal is turned off. This means that for the program
+    to register input, pressing newline/enter is not required. Using fcntl, the blocking nature of input is removed. This means that the printing of CPU
+    interrupts doesn't wait for user input.
+
+    The /proc/interrupts file is read every 'interval' seconds. In /proc/interrupts file, the first line is the heading of the columns below it. This is printed
+    only once. In the second line, to avoid printing the serial number of entry, the first 5 characters are ignored and printing starts from 6th character, all 
+    the way until the character 'I' is encountered (which is the starting of the string 'IR-IO-APIC' in the file).
+    
+    Once 'q' is pressed, the original settings altered by termios and fcntl are restored.
+
+systemcommand.c - 
+    The commandhandler branches control to known commands but hands over responsibility of system commands to systemcommand.c file. 
+
+    The control first reaches system_command(). Inside, the command is parsed to find out what the actual command is; and then to determine all the arguments 
+    and insert them in an 'arguments' array. Further, the presence of & is checked and if it is background, the process name is stored.
+
+    Then fork() is called. In the child, if the process is to be run in the background, then a new group with id same as the child's id is created, to remove its
+    foreground temrinal priveleges. Then, execvp is run to replace the child's image with a new process.
+
+    Inside the parent process (the shell), if the process to be run was specified as background, then a message is printed to notify the beginning of the child
+    process. Then, a signal handler is called to periodically check if the background process has exited. If the child process is in foreground, then the shell
+    is made to wait until the child has exited.
+
+    Inside the signal handler, the pid of the child is used to wait for the process' status. When the child process exits, or stopped, or terminated by a signal,
+    the while loop is broken and a message is printed to notify the user.
+
+environment.c - 
+    This file contains two functions to perform unsetenv and setenv. Before they are called, simple parsing is involved to check for argument errors.
+
+jobkill.c - 
+    The overkill() function simply iterates through all the active background processes and sends a termination signal to each of them.
+    
+    The kjob() function parses the command for pid and type of signal. Then kill system call is used to send appropriate signal.
+
+jobs.c - 
+    The function print_jobs() goes through each active background process and opens their /proc/pid/stat file. After seeking to the process state in the file,
+    it is printed.
+
+    The function change_state() handles fg and bg command. When bg is invoked, the shell simply signals SIGCONT to the child and reminds itself to look for 
+    SIGCHLD signal via the exit_handler() function. When fg is invoked, the child is again sent SIGCONT again but this time the parent waits till SIGCHLD.
+
+redirection.c - 
+    The function check_redirection() is used for setting appropriate flags and loading the input / output files. And whenever open_redirection() is called, it
+    uses the information found by the former function to open the I/O files.
+
+pipe.c - 
+    This file is responsible for handling input with pipes. The function check_pipe() returns the number of pipes in the command. 
+
+    The function parse_pipe() is used to tokenize for individual parts of the input and sent them for execution in a while loop.
+
+    Inside the execute_pipe() function, first the original settings of I/O are saved in case of redirection. Before execvp in the child process, redirection is
+    checked and appropriate files are opened. Meanwhile, the parent (the shell) saves information about the output stream of the child, so that it can send it
+    as input for the next command in the pipe.
+
+HOW SIGNALS WERE HANDLED:
+    Outside the systemcommand.c file, if SIGINT is received, a handler is there in shell.c that ignores it. Inside systemcommand.c, SIGINT makes the shell send
+    SIGINT to the child.
+    If Ctrl Z is invoked, SIGTSTP is sent to the child, making it enter the background. 

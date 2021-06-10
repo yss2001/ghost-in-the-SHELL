@@ -1,0 +1,20 @@
+gedit
+jobs
+kjob 1 9
+jobs
+quit
+gedit
+jobs
+bg 1
+kjob 1 9
+jobs
+quit
+gedit 
+jobs
+bg 1
+jobs
+gedit
+jobs
+kjob 1 9
+jobs
+cat /dev/urandom | head -c 1000 | wc -c
